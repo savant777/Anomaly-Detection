@@ -42,6 +42,11 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 
 ## Current Features
 
+- Displays a responsive frontend dashboard with mock sensor data
+- Shows summary cards for machine status, health score, anomaly score, and latest timestamp
+- Shows current sensor readings for temperature, rotational speed, torque, and tool wear
+- Shows mock recent anomaly alerts
+- Shows mock sensor trend charts with Recharts
 - Loads the existing `data/ai4i2020.csv` file in the backend
 - Parses CSV data safely with `csv-parse`
 - Stores sensor records in memory
@@ -49,6 +54,26 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 - Simulates realtime polling by returning one sensor row at a time
 - Adds lightweight rule-based anomaly detection
 - Returns anomaly status, anomaly score, and machine health score with sensor rows
+
+## Frontend Dashboard
+
+The frontend currently uses mock data only. It does not connect to the backend API yet.
+
+Dashboard sections:
+
+- Header with project title and short description
+- Summary cards
+- Current sensor readings
+- Sensor trend charts
+- Recent anomaly alerts
+
+The trend charts are built with Recharts and cover:
+
+- Air temperature
+- Process temperature
+- Rotational speed
+- Torque
+- Tool wear
 
 ## Backend API
 
@@ -173,5 +198,4 @@ http://localhost:3000
 - No Docker, Redis, or WebSockets are included
 - Dataset loading happens in memory when the backend starts
 - The anomaly logic is intentionally simple and readable for junior developers
-- Frontend dashboard charts will be added in a later step
-
+- The frontend still uses mock data and will connect to the backend API in a later step
