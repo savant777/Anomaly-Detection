@@ -1,10 +1,12 @@
 import cors from "cors";
 import express from "express";
+import { AnomalyService } from "./services/anomalyService";
 import { createDatasetService } from "./services/datasetService";
 
 const app = express();
 const port = process.env.PORT ?? 4000;
 const datasetService = createDatasetService();
+const anomalyService = new AnomalyService();
 
 datasetService.load();
 
@@ -21,10 +23,11 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/sensors", (req, res) => {
     const limit = Number(req.query.limit ?? 20);
+    const sensors = datasetService.getSensors(limit);
 
     res.json({
         count: datasetService.getTotalCount(),
-        data: datasetService.getSensors(limit)
+        data: anomalyService.enrichMany(sensors)
     });
 });
 
@@ -36,7 +39,7 @@ app.get("/api/sensors/latest", (_req, res) => {
         return;
     }
 
-    res.json(sensor);
+    res.json(anomalyService.enrich(sensor));
 });
 
 app.get("/api/sensors/stream", (_req, res) => {
@@ -47,7 +50,7 @@ app.get("/api/sensors/stream", (_req, res) => {
         return;
     }
 
-    res.json(sensor);
+    res.json(anomalyService.enrich(sensor));
 });
 
 app.use((_req, res) => {

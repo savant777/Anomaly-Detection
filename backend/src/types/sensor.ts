@@ -16,3 +16,15 @@ export interface SensorRecord {
         rnf: boolean;
     };
 }
+
+export type AnomalyStatus = "normal" | "anomaly";
+
+export interface AnomalyResult {
+    status: AnomalyStatus;
+    anomalyScore: number;
+    healthScore: number;
+}
+
+export interface EnrichedSensorRecord extends SensorRecord {
+    anomaly: AnomalyResult;
+}
