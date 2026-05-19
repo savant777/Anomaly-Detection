@@ -10,15 +10,16 @@ import {
     XAxis,
     YAxis
 } from "recharts";
-import { fetchLatestSensor, type SensorRecord } from "../lib/api";
+import { fetchStreamSensor, type SensorRecord } from "../lib/api";
 
-type StatusTone = "green" | "amber" | "red" | "blue";
+type StatusTone = "green" | "amber" | "red" | "blue" | "purple";
 
 interface SummaryCardData {
     label: string;
     value: string;
     helper: string;
-    tone: StatusTone;
+    accent: StatusTone;
+    valueTone?: StatusTone;
 }
 
 interface SensorReading {
@@ -26,6 +27,7 @@ interface SensorReading {
     value: string;
     unit: string;
     helper: string;
+    accent: StatusTone;
 }
 
 interface AlertItem {
@@ -56,70 +58,32 @@ const sensorReadingMetadata: Array<Omit<SensorReading, "value">> = [
     {
         label: "Air temperature",
         unit: "K",
-        helper: "อุณหภูมิรอบเครื่องจักร"
+        helper: "อุณหภูมิรอบเครื่องจักร",
+        accent: "blue"
     },
     {
         label: "Process temperature",
         unit: "K",
-        helper: "ความร้อนขณะเครื่องทำงาน"
+        helper: "ความร้อนขณะเครื่องทำงาน",
+        accent: "red"
     },
     {
         label: "Rotational speed",
         unit: "rpm",
-        helper: "ความเร็วรอบของเพลา"
+        helper: "ความเร็วรอบของเพลา",
+        accent: "green"
     },
     {
         label: "Torque",
         unit: "Nm",
-        helper: "ภาระโหลดเชิงกล"
+        helper: "ภาระโหลดเชิงกล",
+        accent: "amber"
     },
     {
         label: "Tool wear",
         unit: "min",
-        helper: "เวลาการใช้งานสะสม"
-    }
-];
-
-const sensorHistory: SensorHistoryPoint[] = [
-    {
-        time: "01:40",
-        airTemperature: 298.6,
-        processTemperature: 308.8,
-        rotationalSpeed: 1460,
-        torque: 41.1,
-        toolWear: 58
-    },
-    {
-        time: "01:50",
-        airTemperature: 298.8,
-        processTemperature: 309.0,
-        rotationalSpeed: 1498,
-        torque: 43.2,
-        toolWear: 59
-    },
-    {
-        time: "02:00",
-        airTemperature: 299.0,
-        processTemperature: 309.2,
-        rotationalSpeed: 1510,
-        torque: 46.8,
-        toolWear: 61
-    },
-    {
-        time: "02:10",
-        airTemperature: 299.2,
-        processTemperature: 309.6,
-        rotationalSpeed: 1442,
-        torque: 51.6,
-        toolWear: 62
-    },
-    {
-        time: "02:20",
-        airTemperature: 299.1,
-        processTemperature: 309.4,
-        rotationalSpeed: 1482,
-        torque: 42.8,
-        toolWear: 64
+        helper: "เวลาการใช้งานสะสม",
+        accent: "purple"
     }
 ];
 
@@ -156,48 +120,58 @@ const trendCharts: TrendChartConfig[] = [
     }
 ];
 
-const mockAlerts: AlertItem[] = [
-    {
-        id: 1,
-        time: "02:18",
-        title: "แรงบิดสูงกว่าช่วงปกติ",
-        detail: "เครื่อง M14860 รายงานค่า 51.6 Nm ระหว่างโหลดเพิ่มชั่วคราว",
-        severity: "warning"
-    },
-    {
-        id: 2,
-        time: "01:52",
-        title: "แนวโน้ม Tool wear สูง",
-        detail: "รอบก่อนหน้าพบค่า tool wear สูงถึง 190 นาที",
-        severity: "warning"
-    },
-    {
-        id: 3,
-        time: "01:25",
-        title: "พบ machine failure flag",
-        detail: "ข้อมูลย้อนหลังมี failure label ที่ควรตรวจสอบ",
-        severity: "critical"
-    }
-];
+const valueToneStyles: Record<StatusTone, string> = {
+    amber: "text-amber-700",
+    red: "text-rose-700",
+    green: "text-emerald-700",
+    blue: "text-sky-700",
+    purple: "text-violet-700"
+};
 
-const toneStyles: Record<StatusTone, string> = {
-    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
-    red: "border-rose-200 bg-rose-50 text-rose-700",
-    blue: "border-sky-200 bg-sky-50 text-sky-700"
+const AccentStyles: Record<StatusTone, string> = {
+    green: "border-t-emerald-500",
+    amber: "border-t-amber-500",
+    red: "border-t-rose-500",
+    blue: "border-t-sky-500",
+    purple: "border-t-violet-500"
 };
 
 const POLLING_INTERVAL_MS = 5000;
+const MAX_HISTORY_POINTS = 25;
+const MAX_ALERTS = 5;
+
+function mapSensorToHistoryPoint(sensor: SensorRecord): SensorHistoryPoint {
+    return {
+        time: `#${sensor.udi}`,
+        airTemperature: sensor.airTemperatureK,
+        processTemperature: sensor.processTemperatureK,
+        rotationalSpeed: sensor.rotationalSpeedRpm,
+        torque: sensor.torqueNm,
+        toolWear: sensor.toolWearMin
+    };
+}
+
+function createAnomalyAlert(sensor: SensorRecord): AlertItem {
+    return {
+        id: sensor.udi,
+        time: new Date().toLocaleTimeString(),
+        title: `พบความผิดปกติที่เครื่องจักร ${sensor.productId}`,
+        detail: `คะแนนความผิดปกติ ${sensor.anomaly.anomalyScore}%, คะแนนสุขภาพ ${sensor.anomaly.healthScore}%`,
+        severity: sensor.anomaly.anomalyScore >= 75 ? "critical" : "warning"
+    };
+}
 
 function SummaryCard({ card }: { card: SummaryCardData }) {
     return (
-        <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div
-                className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${toneStyles[card.tone]}`}
-            >
+        <article
+            className={`rounded-lg border border-t-4 border-slate-200 bg-white p-5 shadow-sm ${AccentStyles[card.accent]}`}
+        >
+            <p className="text-sm font-medium text-slate-500">
                 {card.label}
-            </div>
-            <p className="mt-4 text-2xl font-semibold text-slate-950">
+            </p>
+            <p
+                className={`mt-4 text-2xl font-semibold ${card.valueTone ? valueToneStyles[card.valueTone] : "text-slate-950"}`}
+            >
                 {card.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{card.helper}</p>
@@ -207,7 +181,9 @@ function SummaryCard({ card }: { card: SummaryCardData }) {
 
 function SensorCard({ reading }: { reading: SensorReading }) {
     return (
-        <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <article
+            className={`rounded-lg border border-t-4 border-slate-200 bg-white p-5 shadow-sm ${AccentStyles[reading.accent]}`}
+        >
             <p className="text-sm font-medium text-slate-500">
                 {reading.label}
             </p>
@@ -224,7 +200,13 @@ function SensorCard({ reading }: { reading: SensorReading }) {
     );
 }
 
-function SensorTrendChart({ chart }: { chart: TrendChartConfig }) {
+function SensorTrendChart({
+    chart,
+    data
+}: {
+    chart: TrendChartConfig;
+    data: SensorHistoryPoint[];
+}) {
     return (
         <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-baseline justify-between gap-3">
@@ -238,7 +220,7 @@ function SensorTrendChart({ chart }: { chart: TrendChartConfig }) {
             <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                        data={sensorHistory}
+                        data={data}
                         margin={{ top: 8, right: 12, bottom: 0, left: -18 }}
                     >
                         <CartesianGrid
@@ -317,6 +299,10 @@ function AlertRow({ alert }: { alert: AlertItem }) {
 
 export default function Home() {
     const [sensor, setSensor] = useState<SensorRecord | null>(null);
+    const [sensorHistory, setSensorHistory] = useState<SensorHistoryPoint[]>(
+        []
+    );
+    const [alerts, setAlerts] = useState<AlertItem[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -324,15 +310,35 @@ export default function Home() {
     useEffect(() => {
         let isMounted = true;
 
-        async function loadLatestSensor() {
+        async function loadStreamSensor() {
             try {
-                const latest = await fetchLatestSensor();
+                const streamedSensor = await fetchStreamSensor();
 
                 if (!isMounted) {
                     return;
                 }
 
-                setSensor(latest);
+                setSensor(streamedSensor);
+                setSensorHistory((currentHistory) => [
+                    ...currentHistory,
+                    mapSensorToHistoryPoint(streamedSensor)
+                ].slice(-MAX_HISTORY_POINTS));
+                if (streamedSensor.anomaly.status === "anomaly") {
+                    setAlerts((currentAlerts) => {
+                        const alreadyExists = currentAlerts.some(
+                            (alert) => alert.id === streamedSensor.udi
+                        );
+
+                        if (alreadyExists) {
+                            return currentAlerts;
+                        }
+
+                        return [
+                            createAnomalyAlert(streamedSensor),
+                            ...currentAlerts
+                        ].slice(0, MAX_ALERTS);
+                    });
+                }
                 setLastUpdated(new Date());
                 setErrorMessage(null);
             } catch {
@@ -346,9 +352,9 @@ export default function Home() {
             }
         }
 
-        loadLatestSensor();
+        loadStreamSensor();
         const intervalId = window.setInterval(
-            loadLatestSensor,
+            loadStreamSensor,
             POLLING_INTERVAL_MS
         );
 
@@ -397,24 +403,26 @@ export default function Home() {
                   ? "Loading"
                   : "Unavailable",
             helper: sensor ? `สถานะเครื่องจักร ${sensor.productId}` : "กำลังเชื่อมต่อ API",
-            tone:
+            accent: "green",
+            valueTone:
                 sensor?.anomaly.status === "anomaly"
                     ? "red"
                     : errorMessage
                       ? "amber"
-                      : "green"
+                      : undefined
         },
         {
             label: "Health score",
             value: sensor ? `${sensor.anomaly.healthScore}%` : "--",
             helper: "คะแนนสุขภาพ",
-            tone: "blue"
+            accent: "blue"
         },
         {
             label: "Anomaly score",
             value: sensor ? `${sensor.anomaly.anomalyScore}%` : "--",
             helper: "คะแนนความผิดปกติ",
-            tone: sensor?.anomaly.status === "anomaly" ? "red" : "amber"
+            accent: "amber",
+            valueTone: sensor?.anomaly.status === "anomaly" ? "red" : undefined
         },
         {
             label: "Latest timestamp",
@@ -424,7 +432,7 @@ export default function Home() {
                   ? "Loading"
                   : "--",
             helper: sensor ? `Dataset row #${sensor.udi}` : "เวลาปัจจุบัน",
-            tone: "red"
+            accent: "red"
         }
     ];
 
@@ -435,21 +443,14 @@ export default function Home() {
                     <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">
                         IoT Machine Monitoring
                     </p>
-                    <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                        <div>
-                            <h1 className="text-4xl font-semibold text-slate-950">
-                                Anomaly Detection Dashboard
-                            </h1>
-                            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-                                หน้าจอติดตามสถานะเครื่องจักรจากข้อมูลเซนเซอร์
-                                พร้อมคะแนนสุขภาพ สัญญาณความผิดปกติ
-                                และรายการแจ้งเตือนล่าสุด
-                            </p>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-                            Live API mode
-                        </div>
-                    </div>
+                    <h1 className="mt-4 text-4xl font-semibold text-slate-950">
+                        Anomaly Detection Dashboard
+                    </h1>
+                    <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
+                        หน้าจอติดตามสถานะเครื่องจักรจากข้อมูลเซนเซอร์
+                        พร้อมคะแนนสุขภาพ สัญญาณความผิดปกติ
+                        และรายการแจ้งเตือนล่าสุด
+                    </p>
                     {errorMessage ? (
                         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                             {errorMessage} Retrying every 5 seconds.
@@ -491,7 +492,7 @@ export default function Home() {
                                 Sensor Trends
                             </h2>
                             <p className="text-sm text-slate-500">
-                                ข้อมูลย้อนหลังจำลองสำหรับเตรียมหน้าจอก่อนเชื่อมต่อ API
+                                ข้อมูลล่าสุดจากระบบติดตามเครื่องจักร
                             </p>
                         </div>
                     </div>
@@ -500,6 +501,7 @@ export default function Home() {
                             <SensorTrendChart
                                 key={chart.dataKey}
                                 chart={chart}
+                                data={sensorHistory}
                             />
                         ))}
                     </div>
@@ -512,16 +514,21 @@ export default function Home() {
                                 Recent Anomaly Alerts
                             </h2>
                             <p className="text-sm text-slate-500">
-                                รายการแจ้งเตือนจำลองสำหรับออกแบบหน้าจอก่อนเชื่อมต่อ
-                                API
+                                รายการผิดปกติล่าสุดจากระบบติดตามเครื่องจักร
                             </p>
                         </div>
                     </div>
-                    <ul className="mt-2">
-                        {mockAlerts.map((alert) => (
-                            <AlertRow key={alert.id} alert={alert} />
-                        ))}
-                    </ul>
+                    {alerts.length > 0 ? (
+                        <ul className="mt-2">
+                            {alerts.map((alert) => (
+                                <AlertRow key={alert.id} alert={alert} />
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                            ยังไม่พบความผิดปกติ
+                        </p>
+                    )}
                 </section>
             </div>
         </main>

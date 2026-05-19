@@ -18,13 +18,12 @@ export interface SensorRecord {
 const backendUrl =
     process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
 
-export async function fetchLatestSensor(): Promise<SensorRecord> {
-    const response = await fetch(`${backendUrl}/api/sensors/latest`);
+export async function fetchStreamSensor(): Promise<SensorRecord> {
+    const response = await fetch(`${backendUrl}/api/sensors/stream`);
 
     if (!response.ok) {
-        throw new Error("Failed to fetch latest sensor data");
+        throw new Error("Failed to fetch streamed sensor data");
     }
 
     return response.json() as Promise<SensorRecord>;
 }
-
