@@ -2,27 +2,131 @@
 
 Beginner-friendly portfolio project for simulating an IoT machine monitoring dashboard and detecting machine anomalies from sensor data.
 
+The project uses a JavaScript/TypeScript stack and keeps the implementation intentionally lightweight: simple REST APIs, in-memory dataset loading, and rule-based anomaly scoring.
+
 ## Tech Stack
 
 - Frontend: Next.js, TypeScript, Tailwind CSS, Recharts
 - Backend: Node.js, Express, TypeScript
+- CSV parsing: csv-parse
 - Dataset: AI4I 2020 Predictive Maintenance Dataset
 
 ## Project Structure
 
 ```text
 .
-├── backend/
-├── data/
-│   └── ai4i2020.csv
-├── frontend/
-├── .gitignore
-└── README.md
+|-- backend/
+|   |-- package.json
+|   |-- tsconfig.json
+|   `-- src/
+|       |-- server.ts
+|       |-- services/
+|       |   |-- anomalyService.ts
+|       |   `-- datasetService.ts
+|       `-- types/
+|           `-- sensor.ts
+|-- data/
+|   `-- ai4i2020.csv
+|-- frontend/
+|   |-- package.json
+|   |-- tailwind.config.ts
+|   |-- tsconfig.json
+|   `-- src/
+|       `-- app/
+|           |-- globals.css
+|           |-- layout.tsx
+|           `-- page.tsx
+|-- .gitignore
+`-- README.md
+```
+
+## Current Features
+
+- Loads the existing `data/ai4i2020.csv` file in the backend
+- Parses CSV data safely with `csv-parse`
+- Stores sensor records in memory
+- Exposes basic REST APIs for sensor data
+- Simulates realtime polling by returning one sensor row at a time
+- Adds lightweight rule-based anomaly detection
+- Returns anomaly status, anomaly score, and machine health score with sensor rows
+
+## Backend API
+
+The backend runs on `http://localhost:4000`.
+
+### GET /health
+
+Returns basic API status and the number of records loaded.
+
+### GET /api/sensors
+
+Returns a small list of enriched sensor rows.
+
+Optional query:
+
+```text
+?limit=20
+```
+
+The API caps the limit to avoid returning too much data at once.
+
+### GET /api/sensors/latest
+
+Returns the latest sensor row from the dataset with anomaly information.
+
+### GET /api/sensors/stream
+
+Returns one sensor row per request. The backend moves forward through the dataset and loops back to the first row after the final row.
+
+This is used to simulate realtime polling without WebSockets.
+
+## Anomaly Detection
+
+The backend uses a simple rule-based scoring system instead of a machine learning framework.
+
+Each sensor row is enriched with:
+
+```json
+{
+  "anomaly": {
+    "status": "normal",
+    "anomalyScore": 0,
+    "healthScore": 100
+  }
+}
+```
+
+The anomaly score uses:
+
+- Dataset `machineFailure` label
+- Tool wear
+- Torque
+- Rotational speed
+- Difference between process temperature and air temperature
+
+The score is capped between `0` and `100`.
+
+```text
+healthScore = 100 - anomalyScore
+```
+
+If `anomalyScore >= 50`, the row is marked as:
+
+```text
+status: "anomaly"
+```
+
+Otherwise, it is marked as:
+
+```text
+status: "normal"
 ```
 
 ## Run Locally
 
 Install dependencies separately for each app.
+
+### Backend
 
 ```bash
 cd backend
@@ -30,7 +134,25 @@ npm install
 npm run dev
 ```
 
-The backend runs on `http://localhost:4000`.
+Backend URL:
+
+```text
+http://localhost:4000
+```
+
+Build backend:
+
+```bash
+npm run build
+```
+
+Start built backend:
+
+```bash
+npm start
+```
+
+### Frontend
 
 ```bash
 cd frontend
@@ -38,9 +160,18 @@ npm install
 npm run dev
 ```
 
-The frontend runs on `http://localhost:3000`.
+Frontend URL:
 
-## Current Status
+```text
+http://localhost:3000
+```
 
-Step 1 initializes the project scaffold only. Dataset loading, anomaly detection, dashboard charts, and simulated realtime polling will be added in later steps.
+## Development Notes
+
+- No database is used yet
+- No authentication is included
+- No Docker, Redis, or WebSockets are included
+- Dataset loading happens in memory when the backend starts
+- The anomaly logic is intentionally simple and readable for junior developers
+- Frontend dashboard charts will be added in a later step
 
