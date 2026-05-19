@@ -1,3 +1,15 @@
+"use client";
+
+import {
+    CartesianGrid,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
+} from "recharts";
+
 type StatusTone = "green" | "amber" | "red" | "blue";
 
 interface SummaryCardData {
@@ -20,6 +32,22 @@ interface AlertItem {
     title: string;
     detail: string;
     severity: "warning" | "critical";
+}
+
+interface SensorHistoryPoint {
+    time: string;
+    airTemperature: number;
+    processTemperature: number;
+    rotationalSpeed: number;
+    torque: number;
+    toolWear: number;
+}
+
+interface TrendChartConfig {
+    title: string;
+    dataKey: keyof Omit<SensorHistoryPoint, "time">;
+    unit: string;
+    color: string;
 }
 
 const latestSensor = {
@@ -88,6 +116,82 @@ const summaryCards: SummaryCardData[] = [
     }
 ];
 
+const sensorHistory: SensorHistoryPoint[] = [
+    {
+        time: "01:40",
+        airTemperature: 298.6,
+        processTemperature: 308.8,
+        rotationalSpeed: 1460,
+        torque: 41.1,
+        toolWear: 58
+    },
+    {
+        time: "01:50",
+        airTemperature: 298.8,
+        processTemperature: 309.0,
+        rotationalSpeed: 1498,
+        torque: 43.2,
+        toolWear: 59
+    },
+    {
+        time: "02:00",
+        airTemperature: 299.0,
+        processTemperature: 309.2,
+        rotationalSpeed: 1510,
+        torque: 46.8,
+        toolWear: 61
+    },
+    {
+        time: "02:10",
+        airTemperature: 299.2,
+        processTemperature: 309.6,
+        rotationalSpeed: 1442,
+        torque: 51.6,
+        toolWear: 62
+    },
+    {
+        time: "02:20",
+        airTemperature: 299.1,
+        processTemperature: 309.4,
+        rotationalSpeed: 1482,
+        torque: 42.8,
+        toolWear: 64
+    }
+];
+
+const trendCharts: TrendChartConfig[] = [
+    {
+        title: "Air temperature",
+        dataKey: "airTemperature",
+        unit: "K",
+        color: "#0284c7"
+    },
+    {
+        title: "Process temperature",
+        dataKey: "processTemperature",
+        unit: "K",
+        color: "#dc2626"
+    },
+    {
+        title: "Rotational speed",
+        dataKey: "rotationalSpeed",
+        unit: "rpm",
+        color: "#059669"
+    },
+    {
+        title: "Torque",
+        dataKey: "torque",
+        unit: "Nm",
+        color: "#d97706"
+    },
+    {
+        title: "Tool wear",
+        dataKey: "toolWear",
+        unit: "min",
+        color: "#7c3aed"
+    }
+];
+
 const mockAlerts: AlertItem[] = [
     {
         id: 1,
@@ -150,6 +254,65 @@ function SensorCard({ reading }: { reading: SensorReading }) {
                 </span>
             </div>
             <p className="mt-2 text-sm text-slate-500">{reading.helper}</p>
+        </article>
+    );
+}
+
+function SensorTrendChart({ chart }: { chart: TrendChartConfig }) {
+    return (
+        <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-950">
+                    {chart.title}
+                </h3>
+                <span className="text-xs font-medium text-slate-400">
+                    {chart.unit}
+                </span>
+            </div>
+            <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                        data={sensorHistory}
+                        margin={{ top: 8, right: 12, bottom: 0, left: -18 }}
+                    >
+                        <CartesianGrid
+                            stroke="#e2e8f0"
+                            strokeDasharray="3 3"
+                            vertical={false}
+                        />
+                        <XAxis
+                            dataKey="time"
+                            tick={{ fill: "#64748b", fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                        />
+                        <YAxis
+                            tick={{ fill: "#64748b", fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={48}
+                        />
+                        <Tooltip
+                            formatter={(value) => [
+                                `${value} ${chart.unit}`,
+                                chart.title
+                            ]}
+                            contentStyle={{
+                                borderRadius: "8px",
+                                borderColor: "#e2e8f0"
+                            }}
+                        />
+                        <Line
+                            type="monotone"
+                            dataKey={chart.dataKey}
+                            stroke={chart.color}
+                            strokeWidth={2.5}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
         </article>
     );
 }
@@ -238,6 +401,27 @@ export default function Home() {
                     </div>
                 </section>
 
+                <section className="mt-8">
+                    <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h2 className="text-xl font-semibold text-slate-950">
+                                Sensor Trends
+                            </h2>
+                            <p className="text-sm text-slate-500">
+                                ข้อมูลย้อนหลังจำลองสำหรับเตรียมหน้าจอก่อนเชื่อมต่อ API
+                            </p>
+                        </div>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        {trendCharts.map((chart) => (
+                            <SensorTrendChart
+                                key={chart.dataKey}
+                                chart={chart}
+                            />
+                        ))}
+                    </div>
+                </section>
+
                 <section className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                         <div>
@@ -260,4 +444,3 @@ export default function Home() {
         </main>
     );
 }
-
