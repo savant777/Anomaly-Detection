@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
     CartesianGrid,
     Line,
@@ -9,6 +10,7 @@ import {
     XAxis,
     YAxis
 } from "recharts";
+import { fetchLatestSensor, type SensorRecord } from "../lib/api";
 
 type StatusTone = "green" | "amber" | "red" | "blue";
 
@@ -50,69 +52,31 @@ interface TrendChartConfig {
     color: string;
 }
 
-const latestSensor = {
-    timestamp: "2026-05-20 02:24",
-    machineStatus: "Normal",
-    healthScore: 88,
-    anomalyScore: 12,
-    readings: [
-        {
-            label: "Air temperature",
-            value: "299.1",
-            unit: "K",
-            helper: "อุณหภูมิรอบเครื่องจักร"
-        },
-        {
-            label: "Process temperature",
-            value: "309.4",
-            unit: "K",
-            helper: "ความร้อนขณะเครื่องทำงาน"
-        },
-        {
-            label: "Rotational speed",
-            value: "1,482",
-            unit: "rpm",
-            helper: "ความเร็วรอบของเพลา"
-        },
-        {
-            label: "Torque",
-            value: "42.8",
-            unit: "Nm",
-            helper: "ภาระโหลดเชิงกล"
-        },
-        {
-            label: "Tool wear",
-            value: "64",
-            unit: "min",
-            helper: "เวลาการใช้งานสะสม"
-        }
-    ] satisfies SensorReading[]
-};
-
-const summaryCards: SummaryCardData[] = [
+const sensorReadingMetadata: Array<Omit<SensorReading, "value">> = [
     {
-        label: "Machine status",
-        value: latestSensor.machineStatus,
-        helper: "สถานะเครื่องจักร",
-        tone: "green"
+        label: "Air temperature",
+        unit: "K",
+        helper: "อุณหภูมิรอบเครื่องจักร"
     },
     {
-        label: "Health score",
-        value: `${latestSensor.healthScore}%`,
-        helper: "คะแนนสุขภาพ ประเมินจากกฎพื้นฐาน",
-        tone: "blue"
+        label: "Process temperature",
+        unit: "K",
+        helper: "ความร้อนขณะเครื่องทำงาน"
     },
     {
-        label: "Anomaly score",
-        value: `${latestSensor.anomalyScore}%`,
-        helper: "คะแนนความผิดปกติ",
-        tone: "amber"
+        label: "Rotational speed",
+        unit: "rpm",
+        helper: "ความเร็วรอบของเพลา"
     },
     {
-        label: "Latest timestamp",
-        value: latestSensor.timestamp,
-        helper: "เวลาจำลองของข้อมูล",
-        tone: "red"
+        label: "Torque",
+        unit: "Nm",
+        helper: "ภาระโหลดเชิงกล"
+    },
+    {
+        label: "Tool wear",
+        unit: "min",
+        helper: "เวลาการใช้งานสะสม"
     }
 ];
 
@@ -222,6 +186,8 @@ const toneStyles: Record<StatusTone, string> = {
     red: "border-rose-200 bg-rose-50 text-rose-700",
     blue: "border-sky-200 bg-sky-50 text-sky-700"
 };
+
+const POLLING_INTERVAL_MS = 5000;
 
 function SummaryCard({ card }: { card: SummaryCardData }) {
     return (
@@ -350,6 +316,118 @@ function AlertRow({ alert }: { alert: AlertItem }) {
 }
 
 export default function Home() {
+    const [sensor, setSensor] = useState<SensorRecord | null>(null);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadLatestSensor() {
+            try {
+                const latest = await fetchLatestSensor();
+
+                if (!isMounted) {
+                    return;
+                }
+
+                setSensor(latest);
+                setLastUpdated(new Date());
+                setErrorMessage(null);
+            } catch {
+                if (isMounted) {
+                    setErrorMessage("ไม่สามารถดึงข้อมูลเซนเซอร์ล่าสุดได้");
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        loadLatestSensor();
+        const intervalId = window.setInterval(
+            loadLatestSensor,
+            POLLING_INTERVAL_MS
+        );
+
+        return () => {
+            isMounted = false;
+            window.clearInterval(intervalId);
+        };
+    }, []);
+
+    const currentReadings: SensorReading[] = sensor
+        ? [
+              {
+                  ...sensorReadingMetadata[0],
+                  value: sensor.airTemperatureK.toFixed(1),
+              },
+              {
+                  ...sensorReadingMetadata[1],
+                  value: sensor.processTemperatureK.toFixed(1),
+              },
+              {
+                  ...sensorReadingMetadata[2],
+                  value: sensor.rotationalSpeedRpm.toLocaleString(),
+              },
+              {
+                  ...sensorReadingMetadata[3],
+                  value: sensor.torqueNm.toFixed(1),
+              },
+              {
+                  ...sensorReadingMetadata[4],
+                  value: sensor.toolWearMin.toString(),
+              }
+          ]
+        : sensorReadingMetadata.map((reading) => ({
+              ...reading,
+              value: isLoading ? "..." : "--"
+          }));
+
+    const dashboardSummaryCards: SummaryCardData[] = [
+        {
+            label: "Machine status",
+            value: sensor
+                ? sensor.anomaly.status === "anomaly"
+                    ? "Anomaly"
+                    : "Normal"
+                : isLoading
+                  ? "Loading"
+                  : "Unavailable",
+            helper: sensor ? `สถานะเครื่องจักร ${sensor.productId}` : "กำลังเชื่อมต่อ API",
+            tone:
+                sensor?.anomaly.status === "anomaly"
+                    ? "red"
+                    : errorMessage
+                      ? "amber"
+                      : "green"
+        },
+        {
+            label: "Health score",
+            value: sensor ? `${sensor.anomaly.healthScore}%` : "--",
+            helper: "คะแนนสุขภาพ",
+            tone: "blue"
+        },
+        {
+            label: "Anomaly score",
+            value: sensor ? `${sensor.anomaly.anomalyScore}%` : "--",
+            helper: "คะแนนความผิดปกติ",
+            tone: sensor?.anomaly.status === "anomaly" ? "red" : "amber"
+        },
+        {
+            label: "Latest timestamp",
+            value: lastUpdated
+                ? lastUpdated.toLocaleTimeString()
+                : isLoading
+                  ? "Loading"
+                  : "--",
+            helper: sensor ? `Dataset row #${sensor.udi}` : "เวลาปัจจุบัน",
+            tone: "red"
+        }
+    ];
+
     return (
         <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-7xl">
@@ -369,13 +447,18 @@ export default function Home() {
                             </p>
                         </div>
                         <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-                            Mock data mode
+                            Live API mode
                         </div>
                     </div>
+                    {errorMessage ? (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                            {errorMessage} Retrying every 5 seconds.
+                        </div>
+                    ) : null}
                 </header>
 
                 <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {summaryCards.map((card) => (
+                    {dashboardSummaryCards.map((card) => (
                         <SummaryCard key={card.label} card={card} />
                     ))}
                 </section>
@@ -392,7 +475,7 @@ export default function Home() {
                         </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                        {latestSensor.readings.map((reading) => (
+                        {currentReadings.map((reading) => (
                             <SensorCard
                                 key={reading.label}
                                 reading={reading}
