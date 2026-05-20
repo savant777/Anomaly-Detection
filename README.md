@@ -249,6 +249,33 @@ Start built backend:
 npm start
 ```
 
+## Backend Deployment on Render
+
+Deploy the backend as a Render Web Service.
+
+Recommended Render settings:
+
+```text
+Root Directory: backend
+Build Command: npm install && npm run build
+Start Command: npm start
+```
+
+Environment variables:
+
+```text
+PORT
+FRONTEND_URL
+```
+
+Notes:
+
+- Render provides `PORT` automatically. The backend falls back to `4000` for local development.
+- Set `FRONTEND_URL` to the deployed frontend URL, for example `https://your-app.vercel.app`.
+- For local development, `FRONTEND_URL` defaults to `http://localhost:3000`.
+- The backend runs compiled JavaScript from `dist/server.js`.
+- Python is not required for backend runtime. The offline ML script only exports `backend/src/model/anomalyModel.json` ahead of time.
+
 ### Frontend
 
 ```bash

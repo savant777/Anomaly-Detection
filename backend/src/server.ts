@@ -5,12 +5,17 @@ import { createDatasetService } from "./services/datasetService";
 
 const app = express();
 const port = process.env.PORT ?? 4000;
+const allowedFrontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
 const datasetService = createDatasetService();
 const anomalyService = new AnomalyService();
 
 datasetService.load();
 
-app.use(cors());
+app.use(
+    cors({
+        origin: allowedFrontendUrl
+    })
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
