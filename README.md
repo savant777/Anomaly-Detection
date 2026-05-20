@@ -1,80 +1,53 @@
 # IoT Anomaly Detection Dashboard
 
-Beginner-friendly portfolio project for simulating an IoT machine monitoring dashboard and detecting machine anomalies from sensor data.
+A portfolio project that simulates an IoT machine monitoring system, streams sensor readings, scores machine health, and explains anomaly risk using exported ML model statistics.
 
-The project uses a JavaScript/TypeScript stack and keeps the implementation intentionally lightweight: simple REST APIs, in-memory dataset loading, and rule-based anomaly scoring.
+The main application runs on a JavaScript/TypeScript stack. Python is used only for offline model training and analysis.
+
+## Project Overview
+
+This project uses the AI4I 2020 Predictive Maintenance Dataset to simulate machine sensor monitoring. The backend streams one sensor row at a time, enriches it with anomaly and health scores, and returns risk factors that explain which sensor values contributed most to the current risk.
+
+The frontend displays a responsive monitoring dashboard with live-updating sensor cards, trend charts, ML model insights, and recent warning/anomaly alerts.
+
+## Screenshots
+
+> Add screenshots or demo GIFs here after deployment.
+
+```text
+screenshots/dashboard.png
+screenshots/demo.gif
+```
+
+## Features
+
+- Realtime sensor monitoring simulation with REST polling
+- Machine status, anomaly score, and health score
+- Streaming sensor trend charts with Recharts
+- Recent monitoring alerts for warning and anomaly states
+- ML-based risk factors from exported model statistics
+- z-score based sensor deviation analysis
+- Feature-importance weighted anomaly scoring
+- Offline ML training pipeline with scikit-learn
+- Beginner-friendly TypeScript backend inference layer
 
 ## Tech Stack
 
-- Frontend: Next.js, TypeScript, Tailwind CSS, Recharts
-- Backend: Node.js, Express, TypeScript
-- CSV parsing: csv-parse
-- Offline ML: Python, pandas, scikit-learn
-- Dataset: AI4I 2020 Predictive Maintenance Dataset
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js, TypeScript, Tailwind CSS, Recharts |
+| Backend | Node.js, Express, TypeScript |
+| ML Pipeline | Python, pandas, scikit-learn |
+| Model | RandomForestClassifier |
+| Dataset | AI4I 2020 Predictive Maintenance Dataset |
+| Frontend Deployment | Vercel |
+| Backend Deployment | Render |
 
-## Project Structure
+## ML Pipeline
 
-```text
-.
-|-- backend/
-|   |-- package.json
-|   |-- tsconfig.json
-|   `-- src/
-|       |-- server.ts
-|       |-- services/
-|       |   |-- anomalyService.ts
-|       |   `-- datasetService.ts
-|       |-- model/
-|       |   `-- anomalyModel.json
-|       `-- types/
-|           `-- sensor.ts
-|-- data/
-|   `-- ai4i2020.csv
-|-- frontend/
-|   |-- package.json
-|   |-- tailwind.config.ts
-|   |-- tsconfig.json
-|   `-- src/
-|       `-- app/
-|           |-- globals.css
-|           |-- layout.tsx
-|           `-- page.tsx
-|-- ml/
-|   |-- requirements.txt
-|   `-- train_model.py
-|-- .gitignore
-`-- README.md
-```
+The ML pipeline lives in `ml/train_model.py`.
 
-## Current Features
-
-- Displays a responsive frontend dashboard with streamed sensor data
-- Shows summary cards for machine status, health score, anomaly score, and latest timestamp
-- Shows current sensor readings for temperature, rotational speed, torque, and tool wear
-- Shows recent anomaly alerts generated from streamed anomaly rows
-- Shows sensor trend charts with Recharts using streamed data
-- Loads the existing `data/ai4i2020.csv` file in the backend
-- Parses CSV data safely with `csv-parse`
-- Stores sensor records in memory
-- Exposes basic REST APIs for sensor data
-- Simulates realtime polling by returning one sensor row at a time
-- Adds lightweight rule-based anomaly detection
-- Returns anomaly status, anomaly score, and machine health score with sensor rows
-- Includes an offline Python ML training script that exports model statistics to JSON
-
-## Frontend Dashboard
-
-The frontend connects to the backend with simple polling. It does not use WebSockets.
-
-Dashboard sections:
-
-- Header with project title and short description
-- Summary cards
-- Current sensor readings
-- Sensor trend charts
-- Recent anomaly alerts
-
-The trend charts are built with Recharts and cover:
+It trains a simple `RandomForestClassifier` offline using these sensor features:
 
 - Air temperature
 - Process temperature
@@ -82,45 +55,9 @@ The trend charts are built with Recharts and cover:
 - Torque
 - Tool wear
 
-## Offline ML Pipeline
+The target column is `Machine failure`.
 
-The main application runtime stays JavaScript/TypeScript-based. Python is used only for offline training and analysis.
-
-The training script is:
-
-```text
-ml/train_model.py
-```
-
-It reads:
-
-```text
-data/ai4i2020.csv
-```
-
-It trains a simple `RandomForestClassifier` with these sensor features:
-
-- Air temperature
-- Process temperature
-- Rotational speed
-- Torque
-- Tool wear
-
-The target column is:
-
-```text
-Machine failure
-```
-
-Run the pipeline:
-
-```bash
-cd ml
-pip install -r requirements.txt
-python train_model.py
-```
-
-The script exports model statistics to:
+After training, the script exports model statistics to:
 
 ```text
 backend/src/model/anomalyModel.json
@@ -129,97 +66,52 @@ backend/src/model/anomalyModel.json
 The exported JSON includes:
 
 - Model metadata
-- Evaluation metrics
 - Feature statistics: mean, standard deviation, min, max
 - Feature importance
-- Simple scoring parameters for a future TypeScript inference layer
+- Basic scoring parameters
+- Evaluation output from the offline training run
 
-The backend does not run Python during requests. In a later step, the Node.js backend can read `anomalyModel.json` and use those statistics to improve the current rule-based anomaly scoring.
+Python is not used during API requests. At runtime, the Node.js backend reads the exported JSON and performs lightweight scoring in TypeScript.
 
-## Backend API
+### Runtime Scoring
 
-The backend runs on `http://localhost:4000`.
+The backend calculates anomaly risk by:
 
-### GET /health
+1. Comparing each live sensor value against the exported feature mean and standard deviation.
+2. Calculating a z-score style deviation for each feature.
+3. Weighting each feature score using exported feature importance.
+4. Adding extra signal when the dataset row has a machine failure label.
+5. Producing `status`, `anomalyScore`, `healthScore`, and `riskFactors`.
 
-Returns basic API status and the number of records loaded.
+This keeps inference simple, explainable, and easy to run on a normal Node.js API server.
 
-### GET /api/sensors
-
-Returns a small list of enriched sensor rows.
-
-Optional query:
-
-```text
-?limit=20
-```
-
-The API caps the limit to avoid returning too much data at once.
-
-### GET /api/sensors/latest
-
-Returns the latest sensor row from the dataset with anomaly information.
-
-### GET /api/sensors/stream
-
-Returns one sensor row per request. The backend moves forward through the dataset and loops back to the first row after the final row.
-
-This is used to simulate realtime polling without WebSockets.
-
-## Anomaly Detection
-
-The backend uses lightweight TypeScript scoring at runtime. It reads exported statistics from:
+## System Architecture
 
 ```text
+AI4I CSV Dataset
+      |
+      | offline training
+      v
+Python ML Pipeline
+      |
+      | exports model statistics
+      v
 backend/src/model/anomalyModel.json
+      |
+      | read at backend startup/runtime
+      v
+Node.js + Express API
+      |
+      | REST polling
+      v
+Next.js Dashboard
+      |
+      | visualizes
+      v
+Sensor Cards, Trend Charts, ML Insights, Alerts
 ```
 
-The backend does not run Python during API requests.
-
-Each sensor row is enriched with:
-
-```json
-{
-  "anomaly": {
-    "status": "normal",
-    "anomalyScore": 0,
-    "healthScore": 100
-  }
-}
-```
-
-The anomaly score uses:
-
-- Dataset `machineFailure` label
-- Feature means and standard deviations
-- Feature min and max training ranges
-- Feature importance exported by the offline model
-- Simple scoring parameters exported in JSON
-
-The score is capped between `0` and `100`.
-
-```text
-healthScore = 100 - anomalyScore
-```
-
-The response can return:
-
-```text
-status: "normal" | "warning" | "anomaly"
-```
-
-If `anomalyScore` reaches the exported anomaly threshold, the row is marked as:
-
-```text
-status: "anomaly"
-```
-
-Lower scores are marked as `warning` or `normal` depending on the calculated risk.
-
-The response also includes `riskFactors`, which show which sensor features contributed most to the score.
-
-
-## Run Locally
+## Local Development
 
 Install dependencies separately for each app.
 
@@ -237,44 +129,12 @@ Backend URL:
 http://localhost:4000
 ```
 
-Build backend:
+Build and run production backend locally:
 
 ```bash
 npm run build
-```
-
-Start built backend:
-
-```bash
 npm start
 ```
-
-## Backend Deployment on Render
-
-Deploy the backend as a Render Web Service.
-
-Recommended Render settings:
-
-```text
-Root Directory: backend
-Build Command: npm install && npm run build
-Start Command: npm start
-```
-
-Environment variables:
-
-```text
-PORT
-FRONTEND_URL
-```
-
-Notes:
-
-- Render provides `PORT` automatically. The backend falls back to `4000` for local development.
-- Set `FRONTEND_URL` to the deployed frontend URL, for example `https://your-app.vercel.app`.
-- For local development, `FRONTEND_URL` defaults to `http://localhost:3000`.
-- The backend runs compiled JavaScript from `dist/server.js`.
-- Python is not required for backend runtime. The offline ML script only exports `backend/src/model/anomalyModel.json` ahead of time.
 
 ### Frontend
 
@@ -290,11 +150,111 @@ Frontend URL:
 http://localhost:3000
 ```
 
-## Development Notes
+### Offline ML Training
 
-- No database is used yet
-- No authentication is included
-- No Docker, Redis, or WebSockets are included
-- Dataset loading happens in memory when the backend starts
-- The anomaly logic is intentionally simple and readable for junior developers
-- Python is used only for offline ML training/export, not as an API server
+```bash
+cd ml
+pip install -r requirements.txt
+python train_model.py
+```
+
+This regenerates:
+
+```text
+backend/src/model/anomalyModel.json
+```
+
+## Environment Variables
+
+### Backend
+
+Create `backend/.env` for local development:
+
+```env
+PORT=4000
+FRONTEND_URL=http://localhost:3000
+```
+
+`backend/.env.example` is included as a reference.
+
+### Frontend
+
+Create `frontend/.env.local` when the backend URL is not the default:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+```
+
+## Deployment
+
+### Backend on Render
+
+Deploy the backend as a Render Web Service.
+
+```text
+Root Directory: backend
+Build Command: npm install && npm run build
+Start Command: npm start
+```
+
+Render environment variables:
+
+```text
+FRONTEND_URL=https://anomaly-detection-two.vercel.app
+```
+
+Render provides `PORT` automatically.
+
+### Frontend on Vercel
+
+Deploy the frontend as a Vercel project.
+
+```text
+Root Directory: frontend
+Build Command: npm run build
+```
+
+Vercel environment variables:
+
+```text
+NEXT_PUBLIC_BACKEND_URL=https://anomaly-detection-ev0a.onrender.com
+```
+
+## API Endpoints
+
+Base URL:
+
+```text
+http://localhost:4000
+```
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/health` | API health check and dataset load count |
+| GET | `/api/sensors` | Returns a small list of enriched sensor rows |
+| GET | `/api/sensors/latest` | Returns the latest enriched sensor row |
+| GET | `/api/sensors/stream` | Returns one enriched row at a time for polling simulation |
+
+Example anomaly response shape:
+
+```json
+{
+  "anomaly": {
+    "status": "normal",
+    "anomalyScore": 12,
+    "healthScore": 88,
+    "riskFactors": []
+  }
+}
+```
+
+## Future Improvements
+
+- Add frontend screenshot and demo GIF
+- Add API response examples for warning and anomaly cases
+- Add lightweight backend tests for dataset loading and anomaly scoring
+- Add frontend component tests for dashboard states
+- Add frontend deployment configuration notes after Vercel setup
+- Add model version metadata to exported ML statistics
+- Improve alert filtering and dashboard controls
+
