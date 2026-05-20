@@ -12,8 +12,10 @@ The frontend displays a responsive monitoring dashboard with live-updating senso
 
 ## Screenshots
 
-![Dashboard screenshot](https://res.cloudinary.com/dx4da8o3m/image/upload/v1779245492/image_zvemua.png)
-![Dashboard demo](https://res.cloudinary.com/dx4da8o3m/image/upload/v1779246298/ezgif-4972a18feef3637e_wyw77q.gif)
+<p align="center">
+  <img src="https://res.cloudinary.com/dx4da8o3m/image/upload/v1779245492/image_zvemua.png" alt="Dashboard screenshot" width="800" />
+  <img src="https://res.cloudinary.com/dx4da8o3m/image/upload/v1779246298/ezgif-4972a18feef3637e_wyw77q.gif" alt="Dashboard demo" width="800" />
+</p>
 
 ## Features
 
@@ -171,14 +173,12 @@ PORT=4000
 FRONTEND_URL=http://localhost:3000
 ```
 
-`backend/.env.example` is included as a reference.
-
 ### Frontend
 
 Create `frontend/.env.local` when the backend URL is not the default:
 
 ```env
-NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
 ## Deployment
