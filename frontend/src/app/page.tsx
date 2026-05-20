@@ -152,12 +152,17 @@ function mapSensorToHistoryPoint(sensor: SensorRecord): SensorHistoryPoint {
 }
 
 function createAnomalyAlert(sensor: SensorRecord): AlertItem {
+    const topRiskFactor = sensor.anomaly.riskFactors[0];
+    const riskContext = topRiskFactor
+        ? `ปัจจัยหลักคือ ${topRiskFactor.feature} ค่า ${topRiskFactor.value}, z-score ${topRiskFactor.zScore}, contribution ${topRiskFactor.contribution}`
+        : "ยังไม่มี risk factor หลักจากข้อมูลแถวนี้";
+
     return {
         id: sensor.udi,
         time: new Date().toLocaleTimeString(),
-        title: `พบความผิดปกติที่เครื่องจักร ${sensor.productId}`,
-        detail: `คะแนนความผิดปกติ ${sensor.anomaly.anomalyScore}%, คะแนนสุขภาพ ${sensor.anomaly.healthScore}%`,
-        severity: sensor.anomaly.anomalyScore >= 75 ? "critical" : "warning"
+        title: `เครื่อง ${sensor.productId}`,
+        detail: `คะแนนความผิดปกติ ${sensor.anomaly.anomalyScore}%, คะแนนสุขภาพ ${sensor.anomaly.healthScore}%. ${riskContext}`,
+        severity: sensor.anomaly.status === "anomaly" ? "critical" : "warning"
     };
 }
 
@@ -197,6 +202,83 @@ function SensorCard({ reading }: { reading: SensorReading }) {
             </div>
             <p className="mt-2 text-sm text-slate-500">{reading.helper}</p>
         </article>
+    );
+}
+
+function MlModelInsight({ sensor }: { sensor: SensorRecord | null }) {
+    const topRiskFactor = sensor?.anomaly.riskFactors[0];
+
+    return (
+        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h2 className="text-xl font-semibold text-slate-950">
+                        ML Model Insight
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                        ระบบวิเคราะห์ความเสี่ยงจากค่าเบี่ยงเบนของเซนเซอร์และค่าน้ำหนักจากโมเดล Machine Learning
+                    </p>
+                </div>
+                <div className="text-sm font-medium text-slate-500">
+                    {sensor ? `Dataset row #${sensor.udi}` : "Waiting for stream"}
+                </div>
+            </div>
+
+            <div className="mt-5 rounded-lg bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-500">
+                    Top contributor
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">
+                    {topRiskFactor ? topRiskFactor.feature : "None"}
+                </p>
+                {topRiskFactor ? (
+                    <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+                        <span>Value {topRiskFactor.value}</span>
+                        <span>z-score {topRiskFactor.zScore}</span>
+                        <span>Weight {topRiskFactor.importance}</span>
+                        <span>Contribution {topRiskFactor.contribution}</span>
+                    </div>
+                ) : (
+                    <p className="mt-2 text-sm text-slate-500">
+                        ข้อมูลล่าสุดยังอยู่ในเกณฑ์ปกติ
+                    </p>
+                )}
+            </div>
+
+            {sensor && sensor.anomaly.riskFactors.length > 0 && (
+                <div className="mt-5">
+                    <h3 className="text-sm font-semibold text-slate-950">
+                        Risk factors
+                    </h3>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {sensor.anomaly.riskFactors.map((factor) => (
+                            <div
+                                key={factor.feature}
+                                className="rounded-lg border border-slate-200 p-4"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-950">
+                                            {factor.feature}
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            Value {factor.value}
+                                        </p>
+                                    </div>
+                                    <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                                        +{factor.contribution}
+                                    </span>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-500">
+                                    <span>z-score {factor.zScore}</span>
+                                    <span>weight {factor.importance}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </section>
     );
 }
 
@@ -255,7 +337,7 @@ function SensorTrendChart({
                             dataKey={chart.dataKey}
                             stroke={chart.color}
                             strokeWidth={2.5}
-                            dot={{ r: 3 }}
+                            dot={false}
                             activeDot={{ r: 5 }}
                         />
                     </LineChart>
@@ -271,7 +353,7 @@ function AlertRow({ alert }: { alert: AlertItem }) {
             ? "bg-rose-100 text-rose-700"
             : "bg-amber-100 text-amber-700";
     const severityLabel =
-        alert.severity === "critical" ? "Critical" : "Warning";
+        alert.severity === "critical" ? "ผิดปกติ" : "เฝ้าระวัง";
 
     return (
         <li className="flex flex-col gap-3 border-b border-slate-100 py-4 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
@@ -323,7 +405,7 @@ export default function Home() {
                     ...currentHistory,
                     mapSensorToHistoryPoint(streamedSensor)
                 ].slice(-MAX_HISTORY_POINTS));
-                if (streamedSensor.anomaly.status === "anomaly") {
+                if (streamedSensor.anomaly.status !== "normal") {
                     setAlerts((currentAlerts) => {
                         const alreadyExists = currentAlerts.some(
                             (alert) => alert.id === streamedSensor.udi
@@ -480,41 +562,21 @@ export default function Home() {
                                 Current Sensor Readings
                             </h2>
                             <p className="text-sm text-slate-500">
-                                ค่าจำลองล่าสุดจากระบบติดตามเครื่องจักร
-                            </p>
-                        </div>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                        {currentReadings.map((reading) => (
-                            <SensorCard
-                                key={reading.label}
-                                reading={reading}
-                            />
-                        ))}
-                    </div>
-                </section>
-
-                <section className="mt-8">
-                    <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <h2 className="text-xl font-semibold text-slate-950">
-                                Sensor Trends
-                            </h2>
-                            <p className="text-sm text-slate-500">
                                 ข้อมูลล่าสุดจากระบบติดตามเครื่องจักร
                             </p>
                         </div>
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
-                        {trendCharts.map((chart) => (
-                            <SensorTrendChart
-                                key={chart.dataKey}
-                                chart={chart}
-                                data={sensorHistory}
-                            />
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                        {trendCharts.map((chart, index) => (
+                            <div key={chart.dataKey} className="space-y-4">
+                                <SensorTrendChart chart={chart} data={sensorHistory} />
+                                <SensorCard reading={currentReadings[index]} />
+                            </div>
                         ))}
                     </div>
                 </section>
+
+                <MlModelInsight sensor={sensor} />
 
                 <section className="mt-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -535,7 +597,7 @@ export default function Home() {
                         </ul>
                     ) : (
                         <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                            ยังไม่พบความผิดปกติ
+                            ยังไม่พบสถานะเฝ้าระวังหรือผิดปกติจากข้อมูลที่ stream เข้ามา
                         </p>
                     )}
                 </section>
