@@ -9,9 +9,16 @@ export interface SensorRecord {
     toolWearMin: number;
     machineFailure: boolean;
     anomaly: {
-        status: "normal" | "anomaly";
+        status: "normal" | "warning" | "anomaly";
         anomalyScore: number;
         healthScore: number;
+        riskFactors: Array<{
+            feature: string;
+            value: number;
+            zScore: number;
+            importance: number;
+            contribution: number;
+        }>;
     };
 }
 

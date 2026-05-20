@@ -398,7 +398,9 @@ export default function Home() {
             value: sensor
                 ? sensor.anomaly.status === "anomaly"
                     ? "Anomaly"
-                    : "Normal"
+                    : sensor.anomaly.status === "warning"
+                      ? "Warning"
+                      : "Normal"
                 : isLoading
                   ? "Loading"
                   : "Unavailable",
@@ -407,6 +409,8 @@ export default function Home() {
             valueTone:
                 sensor?.anomaly.status === "anomaly"
                     ? "red"
+                    : sensor?.anomaly.status === "warning"
+                      ? "amber"
                     : errorMessage
                       ? "amber"
                       : undefined
@@ -422,7 +426,12 @@ export default function Home() {
             value: sensor ? `${sensor.anomaly.anomalyScore}%` : "--",
             helper: "คะแนนความผิดปกติ",
             accent: "amber",
-            valueTone: sensor?.anomaly.status === "anomaly" ? "red" : undefined
+            valueTone:
+                sensor?.anomaly.status === "anomaly"
+                    ? "red"
+                    : sensor?.anomaly.status === "warning"
+                      ? "amber"
+                      : undefined
         },
         {
             label: "Latest timestamp",

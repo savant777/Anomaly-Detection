@@ -9,6 +9,7 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 - Frontend: Next.js, TypeScript, Tailwind CSS, Recharts
 - Backend: Node.js, Express, TypeScript
 - CSV parsing: csv-parse
+- Offline ML: Python, pandas, scikit-learn
 - Dataset: AI4I 2020 Predictive Maintenance Dataset
 
 ## Project Structure
@@ -23,6 +24,8 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 |       |-- services/
 |       |   |-- anomalyService.ts
 |       |   `-- datasetService.ts
+|       |-- model/
+|       |   `-- anomalyModel.json
 |       `-- types/
 |           `-- sensor.ts
 |-- data/
@@ -36,17 +39,20 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 |           |-- globals.css
 |           |-- layout.tsx
 |           `-- page.tsx
+|-- ml/
+|   |-- requirements.txt
+|   `-- train_model.py
 |-- .gitignore
 `-- README.md
 ```
 
 ## Current Features
 
-- Displays a responsive frontend dashboard with mock sensor data
+- Displays a responsive frontend dashboard with streamed sensor data
 - Shows summary cards for machine status, health score, anomaly score, and latest timestamp
 - Shows current sensor readings for temperature, rotational speed, torque, and tool wear
-- Shows mock recent anomaly alerts
-- Shows mock sensor trend charts with Recharts
+- Shows recent anomaly alerts generated from streamed anomaly rows
+- Shows sensor trend charts with Recharts using streamed data
 - Loads the existing `data/ai4i2020.csv` file in the backend
 - Parses CSV data safely with `csv-parse`
 - Stores sensor records in memory
@@ -54,10 +60,11 @@ The project uses a JavaScript/TypeScript stack and keeps the implementation inte
 - Simulates realtime polling by returning one sensor row at a time
 - Adds lightweight rule-based anomaly detection
 - Returns anomaly status, anomaly score, and machine health score with sensor rows
+- Includes an offline Python ML training script that exports model statistics to JSON
 
 ## Frontend Dashboard
 
-The frontend currently uses mock data only. It does not connect to the backend API yet.
+The frontend connects to the backend with simple polling. It does not use WebSockets.
 
 Dashboard sections:
 
@@ -74,6 +81,60 @@ The trend charts are built with Recharts and cover:
 - Rotational speed
 - Torque
 - Tool wear
+
+## Offline ML Pipeline
+
+The main application runtime stays JavaScript/TypeScript-based. Python is used only for offline training and analysis.
+
+The training script is:
+
+```text
+ml/train_model.py
+```
+
+It reads:
+
+```text
+data/ai4i2020.csv
+```
+
+It trains a simple `RandomForestClassifier` with these sensor features:
+
+- Air temperature
+- Process temperature
+- Rotational speed
+- Torque
+- Tool wear
+
+The target column is:
+
+```text
+Machine failure
+```
+
+Run the pipeline:
+
+```bash
+cd ml
+pip install -r requirements.txt
+python train_model.py
+```
+
+The script exports model statistics to:
+
+```text
+backend/src/model/anomalyModel.json
+```
+
+The exported JSON includes:
+
+- Model metadata
+- Evaluation metrics
+- Feature statistics: mean, standard deviation, min, max
+- Feature importance
+- Simple scoring parameters for a future TypeScript inference layer
+
+The backend does not run Python during requests. In a later step, the Node.js backend can read `anomalyModel.json` and use those statistics to improve the current rule-based anomaly scoring.
 
 ## Backend API
 
@@ -107,7 +168,13 @@ This is used to simulate realtime polling without WebSockets.
 
 ## Anomaly Detection
 
-The backend uses a simple rule-based scoring system instead of a machine learning framework.
+The backend uses lightweight TypeScript scoring at runtime. It reads exported statistics from:
+
+```text
+backend/src/model/anomalyModel.json
+```
+
+The backend does not run Python during API requests.
 
 Each sensor row is enriched with:
 
@@ -124,10 +191,10 @@ Each sensor row is enriched with:
 The anomaly score uses:
 
 - Dataset `machineFailure` label
-- Tool wear
-- Torque
-- Rotational speed
-- Difference between process temperature and air temperature
+- Feature means and standard deviations
+- Feature min and max training ranges
+- Feature importance exported by the offline model
+- Simple scoring parameters exported in JSON
 
 The score is capped between `0` and `100`.
 
@@ -135,17 +202,22 @@ The score is capped between `0` and `100`.
 healthScore = 100 - anomalyScore
 ```
 
-If `anomalyScore >= 50`, the row is marked as:
+The response can return:
+
+```text
+status: "normal" | "warning" | "anomaly"
+```
+
+If `anomalyScore` reaches the exported anomaly threshold, the row is marked as:
 
 ```text
 status: "anomaly"
 ```
 
-Otherwise, it is marked as:
+Lower scores are marked as `warning` or `normal` depending on the calculated risk.
 
-```text
-status: "normal"
-```
+The response also includes `riskFactors`, which show which sensor features contributed most to the score.
+
 
 ## Run Locally
 
@@ -198,4 +270,4 @@ http://localhost:3000
 - No Docker, Redis, or WebSockets are included
 - Dataset loading happens in memory when the backend starts
 - The anomaly logic is intentionally simple and readable for junior developers
-- The frontend still uses mock data and will connect to the backend API in a later step
+- Python is used only for offline ML training/export, not as an API server

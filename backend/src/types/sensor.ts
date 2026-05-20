@@ -17,12 +17,21 @@ export interface SensorRecord {
     };
 }
 
-export type AnomalyStatus = "normal" | "anomaly";
+export type AnomalyStatus = "normal" | "warning" | "anomaly";
+
+export interface RiskFactor {
+    feature: string;
+    value: number;
+    zScore: number;
+    importance: number;
+    contribution: number;
+}
 
 export interface AnomalyResult {
     status: AnomalyStatus;
     anomalyScore: number;
     healthScore: number;
+    riskFactors: RiskFactor[];
 }
 
 export interface EnrichedSensorRecord extends SensorRecord {
