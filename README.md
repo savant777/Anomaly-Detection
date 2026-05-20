@@ -12,12 +12,8 @@ The frontend displays a responsive monitoring dashboard with live-updating senso
 
 ## Screenshots
 
-> Add screenshots or demo GIFs here after deployment.
-
-```text
-screenshots/dashboard.png
-screenshots/demo.gif
-```
+![Dashboard screenshot](https://res.cloudinary.com/dx4da8o3m/image/upload/v1779245492/image_zvemua.png)
+![Dashboard demo](https://res.cloudinary.com/dx4da8o3m/image/upload/v1779246298/ezgif-4972a18feef3637e_wyw77q.gif)
 
 ## Features
 
